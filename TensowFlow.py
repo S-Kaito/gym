@@ -7,7 +7,7 @@ import tkinter
 from abc import ABCMeta , abstractmethod
 
 WEIGHT = 0.1
-ETA = 0.01
+ETA = 0.1
 
 class Layer(metaclass=ABCMeta):
 	def __init__(this,input_num,output_num):
@@ -31,8 +31,8 @@ class Layer(metaclass=ABCMeta):
 
 	def copy(this):
 		layer = create(this.inputNum,this.outputNum,name=this.className)
-		layer.b = np.copy(this.b)
-		layer.w = np.copy(this.w)
+		layer.b = this.b.copy()
+		layer.w = this.w.copy()
 		return layer
 
 class LayerIdentity(Layer):
@@ -46,10 +46,9 @@ class LayerIdentity(Layer):
 
 	def backward(this,x):
 		delta = this.y - x
-
 		this.grad_w = np.dot(this.x.T,delta)
 		this.grad_b = np.sum(delta,axis=0)
-
+		
 		this.grad_x = np.dot(delta,this.w.T)
 
 class LayerSigmoid(Layer):
@@ -64,7 +63,6 @@ class LayerSigmoid(Layer):
 
 	def backward(this,x):  
 		delta = x * (1 - this.y) * this.y
-
 		this.grad_w = np.dot(this.x.T,delta)
 		this.grad_b = np.sum(delta,axis=0)
 
