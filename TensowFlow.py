@@ -7,7 +7,7 @@ import tkinter
 from abc import ABCMeta , abstractmethod
 
 WEIGHT = 0.1
-ETA = 0.1
+ETA = 0.0001
 
 class Layer(metaclass=ABCMeta):
 	def __init__(this,input_num,output_num):

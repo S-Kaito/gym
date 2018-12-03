@@ -4,13 +4,13 @@ import random
 import sys
 import TensowFlow as tf
 
-EPOCH = 50
-BATCH_SIZE = 30
-CLEAR_TURN = 100
+EPOCH = 100
+BATCH_SIZE = 20
+CLEAR_TURN = 50
 GAMMA = 0.99
 
 env = gym.make('CartPole-v0')
-network = tf.Network([tf.LayerSigmoid(4,10),tf.LayerSigmoid(10,10),tf.LayerSigmoid(10,10),tf.LayerIdentity(10,2)])
+network = tf.Network([tf.LayerLeakyReLU(4,15),tf.LayerIdentity(15,2)])
 data = []
 
 def getAction(observation,episode):
@@ -26,8 +26,9 @@ def learn():
 	random.shuffle(data)
 	for d in data:
 		state,action,reward,nextState = d
-		y = np.copy(newNetwork.forward(state))
-		y[0][action] = reward + GAMMA * np.max(network.forward(np.array(nextState))[0])
+		y = np.copy(network.forward(state))
+		y[0][action] = reward + GAMMA * np.max(network.forward(nextState)[0])
+		newNetwork.forward(state)
 		newNetwork.backward(y)
 		newNetwork.update()
 	network = newNetwork
@@ -40,6 +41,7 @@ def main(args):
 		for t in range(CLEAR_TURN * 2):
 			action = getAction(observation,episode)
 			nextObservation, reward, done, info = env.step(action)
+			print(action)
 			if done:
 				if t > CLEAR_TURN:
 					data.append((observation.reshape((1,4)),action,1,np.zeros((1,4))))
