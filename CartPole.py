@@ -8,7 +8,7 @@ from keras.models import Sequential
 from keras.models import model_from_config
 from keras.models import model_from_json
 from keras.layers import Dense
-from keras.optimizers import Adam
+from keras.optimizers import RMSprop
 from keras.utils import plot_model
 from keras import backend as K
 import matplotlib.pyplot as plt
@@ -81,7 +81,7 @@ def main(args):
 	target = clone_model(model)
 	data = deque(maxlen=200)
 
-	model.compile(loss=loss_func, optimizer=Adam(lr=0.01))
+	model.compile(loss=loss_func, optimizer=RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0))
 	model.summary()
 		
 	plot_x = []
