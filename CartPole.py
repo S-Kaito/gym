@@ -1,6 +1,7 @@
 import copy
-import gym
 from collections import deque
+import gym
+from gym import wrappers
 import keras
 from keras import optimizers
 from keras import losses
@@ -23,53 +24,9 @@ BATCH_SIZE = 32
 CLEAR_TURN = 195
 GAMMA = 0.99
 	
-def huberloss(y_true, y_pred):
-    return K.mean(K.minimum(0.5*K.square(y_pred-y_true), K.abs(y_pred-y_true)-0.5), axis=1)
-
-def loss_func(y_true, y_pred):
-    error = tf.abs(y_pred - y_true)
-    quadratic_part = tf.clip_by_value(error, 0.0, 1.0)
-    linear_part = error - quadratic_part
-    loss = tf.reduce_sum(0.5 * tf.square(quadratic_part) + linear_part)
-    return loss
-
-def suppression(x):
-	return -1 if x < -1 else (1 if x > 1 else x)
-
-def clone_model(model, custom_objects={}):
-    config = {
-        'class_name': model.__class__.__name__,
-        'config': model.get_config(),
-    }
-    clone = model_from_config(config, custom_objects=custom_objects)
-    clone.set_weights(model.get_weights())
-    return clone
-
-def getAction(model,observation,episode):
-	y = model.predict(observation.reshape((1,4)))
-	if (0.01 +0.9/(1.0 + episode)) <= np.random.uniform(0,1):
-		return np.argmax(y) , y
-	else:
-		return np.random.choice([0, 1]) , y
-
-def learn(model,target,data):
-	y_pred = []
-	y_true = []
-	for d in data:
-		state,action,reward,nextState = d
-		y = model.predict(state)
-		if not (nextState == np.zeros(state.shape)).all(axis=1):
-			y[0][action] = reward + GAMMA * np.max(target.predict(nextState)[0])
-		else:
-			y[0][action] = reward
-		y_pred.append(state.reshape(4))
-		y_true.append(y.reshape(2))
-	model.fit(np.array(y_pred),np.array(y_true),batch_size=BATCH_SIZE,verbose=0,epochs=1)
-
 def main(args):
-
 	env = gym.make('CartPole-v0')
-	
+	env = wrappers.Monitor(env,'./video', video_callable=(lambda ep: ep % 100 == 0),force=True)
 	if "-r" in args:
 		model = model_from_json(open('model.json').read())
 		model.load_weights('model.h5')
@@ -127,5 +84,48 @@ def main(args):
 
 	plt.scatter(plot_x,plot_y,marker="+")
 	plt.show()
+
+def huberloss(y_true, y_pred):
+    return K.mean(K.minimum(0.5*K.square(y_pred-y_true), K.abs(y_pred-y_true)-0.5), axis=1)
+
+def loss_func(y_true, y_pred):
+    error = tf.abs(y_pred - y_true)
+    quadratic_part = tf.clip_by_value(error, 0.0, 1.0)
+    linear_part = error - quadratic_part
+    loss = tf.reduce_sum(0.5 * tf.square(quadratic_part) + linear_part)
+    return loss
+
+def suppression(x):
+	return -1 if x < -1 else (1 if x > 1 else x)
+
+def clone_model(model, custom_objects={}):
+    config = {
+        'class_name': model.__class__.__name__,
+        'config': model.get_config(),
+    }
+    clone = model_from_config(config, custom_objects=custom_objects)
+    clone.set_weights(model.get_weights())
+    return clone
+
+def getAction(model,observation,episode):
+	y = model.predict(observation.reshape((1,4)))
+	if (0.01 +0.9/(1.0 + episode)) <= np.random.uniform(0,1):
+		return np.argmax(y) , y
+	else:
+		return np.random.choice([0, 1]) , y
+
+def learn(model,target,data):
+	y_pred = []
+	y_true = []
+	for d in data:
+		state,action,reward,nextState = d
+		y = model.predict(state)
+		if not (nextState == np.zeros(state.shape)).all(axis=1):
+			y[0][action] = reward + GAMMA * np.max(target.predict(nextState)[0])
+		else:
+			y[0][action] = reward
+		y_pred.append(state.reshape(4))
+		y_true.append(y.reshape(2))
+	model.fit(np.array(y_pred),np.array(y_true),batch_size=BATCH_SIZE,verbose=0,epochs=1)
 
 main(sys.argv)
