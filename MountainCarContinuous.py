@@ -1,126 +1,112 @@
 import copy
 import gym
-from collections import deque
-import keras
-from keras import optimizers
-from keras import losses
-from keras.models import Sequential
-from keras.models import model_from_config
-from keras.models import model_from_json
-from keras.layers import Dense
-from keras.optimizers import RMSprop
-from keras.utils import plot_model
-from keras import backend as K
+from gym import wrappers
+from deap import base
+from deap import creator
+from deap import tools
 import matplotlib.pyplot as plt
 import numpy as np
 import random
 import sys
-import tensorflow as tf
 import time
 
 EPOCH = 1000
-BATCH_SIZE = 32
-TURN = 150
-GAMMA = 0.95
+env = gym.make('MountainCarContinuous-v0')
+env = wrappers.Monitor(env,'./video',video_callable=(lambda ep: int(round((ep / 100) ** (1. / 3))) ** 3 == (ep / 100)),force=True)
+
+def action(ind,show=False,rec=False):
+
+	env.reset()
+	observation, reward, done, info = env.step([0])
+	height = -1
+	turn = 0
+	done = None
+	for i in range(0,5):
+		for t in ind:
+			if show:
+				env.render()
+			if t == 0:
+				observation, reward, done, info = env.step([1])
+			else:
+				observation, reward, done, info = env.step([-1])
+
+			height = max(height,observation[0])
+			
+			if not done:
+				turn += 1
+			else:
+				return turn,
+
+def mutate(ind,indpb=0.1):
+
 	
-def huberloss(y_true, y_pred):
-    return K.mean(K.minimum(0.5*K.square(y_pred-y_true), K.abs(y_pred-y_true)-0.5), axis=1)
-
-def loss_func(y_true, y_pred):
-    error = tf.abs(y_pred - y_true)
-    quadratic_part = tf.clip_by_value(error, 0.0, 1.0)
-    linear_part = error - quadratic_part
-    loss = tf.reduce_sum(0.5 * tf.square(quadratic_part) + linear_part)
-    return loss
-
-def clone_model(model, custom_objects={}):
-    config = {
-        'class_name': model.__class__.__name__,
-        'config': model.get_config(),
-    }
-    clone = model_from_config(config, custom_objects=custom_objects)
-    clone.set_weights(model.get_weights())
-    return clone
-
-def getAction(model,observation,episode):
-	y = model.predict(observation.reshape((1,2)))
-	if (0.01 +0.9/(1.0 + episode)) <= np.random.uniform(0,1):
-		return -1 if np.argmax(y) == 0 else 1 , y
-	else:
-		return np.random.choice([-1, 1]) , y
-
-def learn(model,target,data,height):
-	y_pred = []
-	y_true = []
-	for d in data:
-		state,action,reward,nextState = d
-		y = model.predict(state)
-		if height[0] != state[0][0] or not (nextState == np.zeros(state.shape)).all(axis=1):
-			y[0][action] = reward + GAMMA * np.max(target.predict(nextState)[0])
-		else:
-			y[0][action] = 1 if height[0] > height[1] else -1
-		y_pred.append(state.reshape(2))
-		y_true.append(y.reshape(2))
-	model.fit(np.array(y_pred),np.array(y_true),batch_size=BATCH_SIZE,verbose=0,epochs=1)
-
 def main(args):
-
-	env = gym.make('MountainCarContinuous-v0')
 	
-	if "-r" in args:
-		model = model_from_json(open('model.json').read())
-		model.load_weights('model.h5')
-	else:
-		model = Sequential()
-		model.add(Dense(16,activation="relu",input_dim=2))
-		model.add(Dense(16,activation="relu"))
-		model.add(Dense(2,activation="linear"))
-	target = clone_model(model)
-	data = deque(maxlen=200)
-
-	model.compile(loss=loss_func, optimizer=RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.0))
-	model.summary()
-		
 	plot_x = []
 	plot_y = []
 	height = -1
 	maxHeight = -1
 
+	creator.create("FitnessMax", base.Fitness, weights=(-1.0,))
+	creator.create("Individual", list, fitness=creator.FitnessMax)
+
+	toolbox = base.Toolbox()
+
+	toolbox.register("attr_bool", random.randint, 0, 1)
+	toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, 200)
+	toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+	toolbox.register("evaluate", action)
+	toolbox.register("mate", tools.cxTwoPoint)
+	toolbox.register("mutate", mutate, indpb=0.05)
+	toolbox.register("select", tools.selTournament, tournsize=3)
+
+	pop = toolbox.population(n=99)
+	CXPB, MUTPB, NGEN = 0.5, 0.2, 40
+
+	fitnesses = list(map(toolbox.evaluate, pop))
+	for ind, fit in zip(pop, fitnesses):
+		ind.fitness.values = fit
+
+	print("Start of evolution")
+
 	for episode in range(EPOCH):
-		observation = env.reset()
-		nextObservation, reward, done, info = env.step(env.action_space.sample())
-		height = -1
-		done = None
 
-		for t in range(TURN):
+		offspring = list(map(toolbox.clone, toolbox.select(pop, len(pop))))
 
-			if EPOCH - episode == 2:
-				env.render()
-				time.sleep(0.1)
+		for child1, child2 in zip(offspring[::2], offspring[1::2]):
 
-			action , y = getAction(model,observation,episode)
-			nextObservation, reward, done, info = env.step([action])
+			if random.random() < CXPB:
+				toolbox.mate(child1, child2)
+				del child1.fitness.values
+				del child2.fitness.values
+
+		for mutant in offspring:
+
+			if random.random() < MUTPB:
+				toolbox.mutate(mutant)
+				del mutant.fitness.values
 	
-			observation = nextObservation
-			height = max(height,nextObservation[0])
-			data.append((observation.reshape((1,2)),action,0,nextObservation.reshape((1,2))))
-
-		print("{} times : finished after {} position {}".format(episode,height,maxHeight))
-
-		if height < 0.45:
-			data.append((observation.reshape((1,2)),action,-1,np.zeros((1,2))))
-		else:
-			data.append((observation.reshape((1,2)),action,1,np.zeros((1,2))))	
+		invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+		fitnesses = map(toolbox.evaluate, invalid_ind)
+		for ind, fit in zip(invalid_ind, fitnesses):
+			ind.fitness.values = fit
+		
+		pop[:] = offspring
+		
+		fits = [ind.fitness.values for ind in pop]
+		
+		print(episode,"|",min(fits))
 
 		plot_x.append(episode)
-		plot_y.append(nextObservation[0])
+		plot_y.append(min(fits))
 
-		if BATCH_SIZE < len(data):
-			learn(model,target,data,(height,maxHeight))
-		if episode % 5 == 0:
-			target = clone_model(model)
-
-		maxHeight = max(maxHeight,height)
+		action(tools.selBest(pop, 1)[0])
+	
+	print("-- End of (successful) evolution --")
+	
+	best_ind = tools.selBest(pop, 1)[0]
+	print("Best individual is %s, %s" % (best_ind, best_ind.fitness.values))
 
 	plt.scatter(plot_x,plot_y,marker="+")
 	plt.show()
