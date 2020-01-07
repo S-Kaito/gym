@@ -36,9 +36,6 @@ def action(ind,show=False,rec=False):
 				turn += 1
 			else:
 				return turn,
-
-def mutate(ind,indpb=0.1):
-
 	
 def main(args):
 	
@@ -58,7 +55,7 @@ def main(args):
 
 	toolbox.register("evaluate", action)
 	toolbox.register("mate", tools.cxTwoPoint)
-	toolbox.register("mutate", mutate, indpb=0.05)
+	toolbox.register("mutate", tools.mutFlipBit, indpb=0.05)
 	toolbox.register("select", tools.selTournament, tournsize=3)
 
 	pop = toolbox.population(n=99)
@@ -94,7 +91,7 @@ def main(args):
 		
 		pop[:] = offspring
 		
-		fits = [ind.fitness.values for ind in pop]
+		fits = [ind.fitness.values[0] for ind in pop]
 		
 		print(episode,"|",min(fits))
 
