@@ -14,7 +14,8 @@ env = gym.make('CartPole-v1')
 # run through the population
 
 
-def eval_fitness(genomes):
+def eval_fitness(genomes, config):
+	print(config)
 	for g in genomes:
 		observation = env.reset()
 		# env.render()
@@ -49,9 +50,11 @@ def eval_fitness(genomes):
 	print(max([genomes[i].fitness for i in range(len(genomes))]))
 
 local_dir = os.path.dirname(__file__)
-config_path = os.path.join(local_dir, "CartPole2.config")
+config_path = os.path.abspath(os.path.join(local_dir, "CartPole02Conf"))
 
-pop = population.Population(config_path)
+pop = population.Population(neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,config_path))
+
 pop.run(eval_fitness, 2000)
 winner = pop.statistics.best_genome()
 del pop
